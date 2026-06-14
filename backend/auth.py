@@ -23,18 +23,28 @@ _bearer = HTTPBearer()
 
 
 def verify_telegram_login(data: dict) -> bool:
+    import logging
+    logger = logging.getLogger(__name__)
+    
     data = dict(data)
     hash_val = data.pop("hash", None)
     if not hash_val:
+        logger.error("No hash in data")
         return False
 
     auth_date = int(data.get("auth_date", 0))
     if time.time() - auth_date > 86400:
+        logger.error(f"Auth date expired: {auth_date}, now: {time.time()}")
         return False
 
     check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
     secret = hashlib.sha256(BOT_TOKEN.encode()).digest()
-    computed = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+    computed = hmac.new(secret, check_string.encode(), digestmod=hashlib.sha256).hexdigest()
+    
+    logger.error(f"check_string: {check_string}")
+    logger.error(f"computed: {computed}")
+    logger.error(f"received: {hash_val}")
+    
     return hmac.compare_digest(computed, hash_val)
 
 
