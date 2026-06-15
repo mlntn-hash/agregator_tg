@@ -50,6 +50,7 @@ function showApp() {
 }
 
 function logout() {
+  stopQrPolling();
   localStorage.removeItem('tga_token');
   localStorage.removeItem('tga_user');
   _token = null;
@@ -142,6 +143,18 @@ async function loadStatus() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  Auth method toggle (Phone vs QR)
+// ═══════════════════════════════════════════════════════════════════
+function showAuthMethod(method) {
+  const isPhone = method === 'phone';
+  document.getElementById('auth-phone-section').style.display = isPhone ? '' : 'none';
+  document.getElementById('auth-qr-section').style.display = isPhone ? 'none' : '';
+  document.getElementById('toggle-phone').className = isPhone ? 'btn btn-blue' : 'btn btn-ghost';
+  document.getElementById('toggle-qr').className = isPhone ? 'btn btn-ghost' : 'btn btn-blue';
+  if (!isPhone) stopQrPolling();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  Phone auth
 // ═══════════════════════════════════════════════════════════════════
 async function sendCode() {
@@ -171,6 +184,54 @@ async function confirmCode() {
     loadStatus();
   } catch(e) {
     msg.innerHTML = `<div class="notice err" style="margin-top:8px">${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  QR auth
+// ═══════════════════════════════════════════════════════════════════
+let _qrPollTimer = null;
+let _qrToken = null;
+
+function stopQrPolling() {
+  if (_qrPollTimer) { clearInterval(_qrPollTimer); _qrPollTimer = null; }
+}
+
+async function startQrLogin() {
+  stopQrPolling();
+  const container = document.getElementById('qr-container');
+  const msg = document.getElementById('qr-msg');
+  container.innerHTML = '<span class="spinner"></span>';
+  msg.innerHTML = '';
+  try {
+    const data = await api('POST', '/auth/qr-session', {});
+    _qrToken = 'qr';
+    container.innerHTML = `<img src="data:image/png;base64,${data.qr_image}" style="width:200px;height:200px;border-radius:8px" alt="QR code" />
+      <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="startQrLogin()">Оновити</button></div>`;
+    msg.innerHTML = '<div class="notice warn" style="margin-top:8px">Очікуємо сканування…</div>';
+    _qrPollTimer = setInterval(pollQrStatus, 3000);
+  } catch(e) {
+    container.innerHTML = '<button class="btn btn-blue" onclick="startQrLogin()">Отримати QR-код</button>';
+    msg.innerHTML = `<div class="notice err" style="margin-top:8px">${e.message}</div>`;
+  }
+}
+
+async function pollQrStatus() {
+  try {
+    const data = await api('POST', '/auth/qr-status', { token: _qrToken || 'qr' });
+    if (data.status === 'authorized') {
+      stopQrPolling();
+      document.getElementById('qr-msg').innerHTML = '<div class="notice ok" style="margin-top:8px">✅ Авторизовано! Підключення…</div>';
+      document.getElementById('qr-container').innerHTML = '';
+      setTimeout(() => {
+        document.getElementById('phone-form').style.display = 'none';
+        loadStatus();
+      }, 1000);
+    }
+  } catch(e) {
+    stopQrPolling();
+    document.getElementById('qr-msg').innerHTML = `<div class="notice err" style="margin-top:8px">${e.message}</div>`;
+    document.getElementById('qr-container').innerHTML = '<button class="btn btn-blue" onclick="startQrLogin()">Спробувати знову</button>';
   }
 }
 

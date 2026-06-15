@@ -50,20 +50,40 @@
         <div id="userbot-status-notice" class="notice">Перевірка…</div>
 
         <div id="phone-form">
-          <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
-            Введіть номер телефону вашого Telegram-акаунта, щоб userbot міг пересилати повідомлення від вашого імені.
-          </p>
-          <div class="form-row">
-            <input id="phone-input" type="tel" placeholder="+380XXXXXXXXX" />
-            <button class="btn btn-blue" onclick="sendCode()">Надіслати код</button>
+          <div class="auth-method-toggle" style="display:flex;gap:8px;margin-bottom:16px">
+            <button id="toggle-phone" class="btn btn-blue" onclick="showAuthMethod('phone')">Телефон / SMS</button>
+            <button id="toggle-qr" class="btn btn-ghost" onclick="showAuthMethod('qr')">QR-код</button>
           </div>
-          <div id="code-block" style="display:none">
-            <div class="notice warn" style="margin-top:8px">Код надіслано вам у Telegram</div>
-            <div class="form-row" style="margin-top:10px">
-              <input id="code-input" type="number" placeholder="12345" />
-              <button class="btn btn-primary" onclick="confirmCode()">Підтвердити</button>
+
+          <!-- Phone/SMS method -->
+          <div id="auth-phone-section">
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+              Введіть номер телефону вашого Telegram-акаунта, щоб userbot міг пересилати повідомлення від вашого імені.
+            </p>
+            <div class="form-row">
+              <input id="phone-input" type="tel" placeholder="+380XXXXXXXXX" />
+              <button class="btn btn-blue" onclick="sendCode()">Надіслати код</button>
+            </div>
+            <div id="code-block" style="display:none">
+              <div class="notice warn" style="margin-top:8px">Код надіслано вам у Telegram</div>
+              <div class="form-row" style="margin-top:10px">
+                <input id="code-input" type="number" placeholder="12345" />
+                <button class="btn btn-primary" onclick="confirmCode()">Підтвердити</button>
+              </div>
             </div>
           </div>
+
+          <!-- QR code method -->
+          <div id="auth-qr-section" style="display:none">
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+              Відскануйте QR-код у Telegram: <b>Налаштування → Пристрої → Сканувати QR-код</b>
+            </p>
+            <div id="qr-container" style="text-align:center;margin-bottom:12px">
+              <button class="btn btn-blue" onclick="startQrLogin()">Отримати QR-код</button>
+            </div>
+            <div id="qr-msg"></div>
+          </div>
+
           <div id="phone-msg"></div>
         </div>
       </div>

@@ -79,6 +79,10 @@ class DestinationRequest(BaseModel):
     identifier: str
 
 
+class QrStatusRequest(BaseModel):
+    token: str
+
+
 # ── Aliases ───────────────────────────────────────────────────────────────────
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -137,40 +141,26 @@ async def auth_code(req: CodeRequest, current_user: CurrentUser, db: DB) -> dict
 
 @app.post("/api/auth/qr-session")
 async def auth_qr_session(current_user: CurrentUser) -> dict:
-    import asyncio
-    import base64
-    import io
-    import qrcode
-    from telethon import TelegramClient
-    from telethon.sessions import StringSession
-    from telethon.tl.functions.auth import ExportLoginTokenRequest
-    from telethon.tl.types import auth as tl_auth
-
-    API_ID = int(os.environ["TELEGRAM_API_ID"])
-    API_HASH = os.environ["TELEGRAM_API_HASH"]
-
-    client = TelegramClient(StringSession(), API_ID, API_HASH)
-    await client.connect()
-
     try:
-        result = await client(ExportLoginTokenRequest(
-            api_id=API_ID,
-            api_hash=API_HASH,
-            except_ids=[],
-        ))
-        token_bytes = result.token
-        token_b64 = base64.urlsafe_b64encode(token_bytes).decode()
-        tg_url = f"tg://login?token={token_b64}"
-
-        img = qrcode.make(tg_url)
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        qr_b64 = base64.b64encode(buf.getvalue()).decode()
-
-        return {"qr_image": qr_b64, "token": token_b64}
+        qr_image = await userbot_manager.start_qr_session(current_user.id)
+        return {"qr_image": qr_image}
     except Exception as exc:
-        await client.disconnect()
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/auth/qr-status")
+async def auth_qr_status(req: QrStatusRequest, current_user: CurrentUser, db: DB) -> dict:
+    try:
+        encrypted_session = await userbot_manager.check_qr_status(current_user.id)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if encrypted_session is None:
+        return {"status": "pending"}
+
+    current_user.session_string = encrypted_session
+    await db.commit()
+    return {"status": "authorized"}
 
 
 # ── Sources endpoints ─────────────────────────────────────────────────────────

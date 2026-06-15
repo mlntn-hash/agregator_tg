@@ -1,7 +1,11 @@
+import asyncio
+import base64
+import io
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
+import qrcode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from telethon import TelegramClient, events
@@ -21,6 +25,7 @@ class UserbotManager:
     def __init__(self) -> None:
         self._clients: dict[int, TelegramClient] = {}
         self._pending: dict[int, tuple[TelegramClient, str]] = {}
+        self._qr_pending: dict[int, dict[str, Any]] = {}
         self._session_factory: Optional[async_sessionmaker] = None
 
     async def startup(self, session_factory: async_sessionmaker) -> None:
@@ -120,6 +125,60 @@ class UserbotManager:
         self._clients[user_id] = client
         await self._register_handlers(user_id)
         return encrypt_session(session_string)
+
+    async def start_qr_session(self, user_id: int) -> str:
+        # Cancel any previous QR session for this user
+        prev = self._qr_pending.pop(user_id, None)
+        if prev:
+            if prev.get("task"):
+                prev["task"].cancel()
+            try:
+                await prev["client"].disconnect()
+            except Exception:
+                pass
+
+        client = TelegramClient(StringSession(), API_ID, API_HASH)
+        await client.connect()
+        qr_login = await client.qr_login()
+
+        state: dict[str, Any] = {"client": client, "session": None, "error": None, "task": None}
+
+        async def _wait():
+            try:
+                await qr_login.wait(timeout=120)
+                state["session"] = client.session.save()
+            except asyncio.TimeoutError:
+                state["error"] = "QR code expired"
+            except Exception as exc:
+                state["error"] = str(exc)
+
+        state["task"] = asyncio.create_task(_wait())
+        self._qr_pending[user_id] = state
+
+        img = qrcode.make(qr_login.url)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode()
+
+    async def check_qr_status(self, user_id: int) -> Optional[str]:
+        """Return encrypted session string if authorized, None if still pending, raises on error."""
+        state = self._qr_pending.get(user_id)
+        if not state:
+            return None
+
+        if state["error"]:
+            self._qr_pending.pop(user_id, None)
+            raise RuntimeError(state["error"])
+
+        if state["session"] is not None:
+            session_string = state["session"]
+            client = state["client"]
+            self._qr_pending.pop(user_id, None)
+            self._clients[user_id] = client
+            await self._register_handlers(user_id)
+            return encrypt_session(session_string)
+
+        return None
 
     async def get_entity(self, user_id: int, identifier: str):
         client = self._clients.get(user_id)
