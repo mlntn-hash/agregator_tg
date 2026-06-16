@@ -21,9 +21,9 @@ async def process_message(event, user_id: int, session_factory: async_sessionmak
 
         text: str = ""
         if event.message.text:
-            text = event.message.text
-        elif event.message.caption:
-            text = event.message.caption
+           text = event.message.text
+        else:
+           text = getattr(event.message, "caption", "") or ""
 
         if not text and not event.message.media:
             return
