@@ -75,7 +75,8 @@ class UserbotManager:
         if not client:
             return
 
-        client.remove_event_handler(None)
+        for callback, event in client.list_event_handlers():
+            client.remove_event_handler(callback)
 
         async with self._session_factory() as db:
             result = await db.execute(

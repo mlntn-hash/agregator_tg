@@ -58,7 +58,7 @@ async def process_message(event, user_id: int, session_factory: async_sessionmak
 
 async def _send(client, chat_id: int, text: str, event) -> None:
     try:
-        if event.message.media and not event.message.text and not event.message.caption:
+        if event.message.media:
             await client.send_file(chat_id, event.message.media, caption=text[:1024])
         else:
             await client.send_message(chat_id, text)
